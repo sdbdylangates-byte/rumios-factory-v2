@@ -1,0 +1,37 @@
+- name: Compile RumiOS Alpha
+        run: |
+          # Define the target directory based on the error log
+          TARGET_DIR="ErfanGSIs/input"
+          mkdir -p $TARGET_DIR
+          
+          # List of mirrors for the required firmware base
+          # The mosezh link is currently returning a 404 error
+          URLS=(
+            "https://osdn.net/projects/sf-gsis/storage/Pixel/pixel_base.zip"
+            "https://github.com/mosezh/ota_mirrors/releases/download/v1/pixel_base.zip"
+            "https://mirror.codeberg.org/projects/rumios/pixel_base.zip"
+          )
+
+          echo "Starting firmware download with fallback protection..."
+          
+          # Loop through URLs until one succeeds
+          success=false
+          for url in "${URLS[@]}"; do
+            echo "Attempting: $url"
+            if aria2c -x16 -s16 -j16 -d "$TARGET_DIR" -o "pixel_base.zip" "$url"; then
+              echo "Successfully downloaded from $url"
+              success=true
+              break
+            else
+              echo "Failed to download from $url, trying next mirror..."
+            fi
+          done
+
+          if [ "$success" = false ]; then
+            echo "Error: All download mirrors failed. Check your internet connection or URL validity."
+            exit 1
+          fi
+
+          # Continue with the build process
+          chmod +x url.sh
+          ./url.sh
