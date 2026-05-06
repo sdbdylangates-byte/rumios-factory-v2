@@ -1,0 +1,74 @@
+name: RumiOS_Ultimate_Safe_Engine
+
+on:
+  workflow_dispatch:
+    inputs:
+      rom_url:
+        description: 'Primary (Stable Android 11 Base)'
+        required: true
+        default: 'https://archive.org/download/lineage-18.1-20210518-nightly-sweet-signed/lineage-18.1-20210518-nightly-sweet-signed.zip'
+      backup_url_1:
+        description: 'Secondary (Modern Android 13 Base)'
+        required: true
+        default: 'https://mirror.accum.se/mirror/lineageos/full/sweet/20240312/lineage-20.0-20240312-nightly-sweet-signed.zip'
+      backup_url_2:
+        description: 'Tertiary (Emergency Pixel Mirror)'
+        required: true
+        default: 'https://github.com/mosezh/ota_mirrors/releases/download/v1/pixel_base.zip'
+      os_type:
+        description: 'GSI Type (Generic for compatibility)'
+        required: true
+        default: 'Generic'
+
+jobs:
+  build_rumios:
+    runs-on: ubuntu-22.04 
+    steps:
+    - name: Maximum Disk Space Clearance
+      uses: jlumbroso/free-disk-space@main
+      with:
+        tool-cache: false
+        android: true
+        dotnet: true
+        haskell: true
+        large-packages: true
+        docker-images: true
+        swap-storage: true
+
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Install Architecture Dependencies
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -y wget git python3 aria2 p7zip-full unace unrar zip unzip device-tree-compiler liblzma-dev brotli liblz4-tool gawk tar
+
+    - name: Initialize RumiOS Engine
+      run: |
+        git clone --depth=1 --recurse-submodules https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/erfanoabdi/ErfanGSIs.git ErfanGSIs
+        mkdir -p ErfanGSIs/output
+
+    - name: Compile RumiOS Alpha
+      run: |
+        cd ErfanGSIs
+        sudo bash ./url2GSI.sh "${{ github.event.inputs.rom_url }}" "${{ github.event.inputs.os_type }}" || \
+        (echo "Primary failed. Trying Secondary..." && sleep 5 && \
+        sudo bash ./url2GSI.sh "${{ github.event.inputs.backup_url_1 }}" "${{ github.event.inputs.os_type }}") || \
+        (echo "Secondary failed. Trying Tertiary..." && sleep 5 && \
+        sudo bash ./url2GSI.sh "${{ github.event.inputs.backup_url_2 }}" "${{ github.event.inputs.os_type }}")
+
+    - name: Package Final Image
+      run: |
+        cd ErfanGSIs/output
+        if ls *.img 1> /dev/null 2>&1; then
+          zip -9 -r RumiOS_Alpha_Build.zip ./*.img
+        else
+          echo "Build failed. All links returned errors."
+          exit 1
+        fi
+
+    - name: Upload to Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: RumiOS-Final-Image
+        path: ErfanGSIs/output/RumiOS_Alpha_Build.zip
