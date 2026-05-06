@@ -1,0 +1,62 @@
+name: RumiOS_Safe_Factory
+
+on:
+  workflow_dispatch:
+    inputs:
+      rom_url:
+        description: 'Direct Link to Base ROM'
+        required: true
+        default: 'https://github.com/mosezh/ota_mirrors/releases/download/v1/pixel_base.zip'
+      os_type:
+        description: 'GSI Type'
+        required: true
+        default: 'Generic'
+
+jobs:
+  build_rumios:
+    runs-on: ubuntu-22.04 
+    steps:
+    - name: Maximum Disk Space Clearance
+      uses: jlumbroso/free-disk-space@main
+      with:
+        tool-cache: false
+        android: true
+        dotnet: true
+        haskell: true
+        large-packages: true
+        docker-images: true
+        swap-storage: true
+
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Install Architecture Dependencies
+      run: |
+        sudo apt-get update -qq
+        sudo apt-get install -y wget git python3 aria2 p7zip-full unace unrar zip unzip device-tree-compiler liblzma-dev brotli liblz4-tool gawk tar
+
+    - name: Initialize RumiOS Engine
+      run: |
+        git clone --depth=1 --recurse-submodules https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/erfanoabdi/ErfanGSIs.git ErfanGSIs
+        mkdir -p ErfanGSIs/output
+
+    - name: Compile RumiOS Alpha
+      run: |
+        cd ErfanGSIs
+        sudo bash ./url2GSI.sh "${{ github.event.inputs.rom_url }}" "${{ github.event.inputs.os_type }}"
+
+    - name: Package Final Image
+      run: |
+        cd ErfanGSIs/output
+        if ls *.img 1> /dev/null 2>&1; then
+          zip -9 -r RumiOS_Alpha_Build.zip ./*.img
+        else
+          echo "ERROR: Image not found."
+          exit 1
+        fi
+
+    - name: Upload to Artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: RumiOS-Final-Image
+        path: ErfanGSIs/output/RumiOS_Alpha_Build.zip
