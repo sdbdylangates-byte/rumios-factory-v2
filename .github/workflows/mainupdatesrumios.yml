@@ -1,0 +1,53 @@
+name: Build RumiOS v2
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Maximize Build Space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+          sudo docker image prune -a -f
+          df -h
+
+      - name: Install Dependencies
+        run: sudo apt-get install -y zip unzip wget curl
+
+      - name: Download Base ROM
+        run: |
+          # --- PASTE YOUR DIRECT LINK BETWEEN THE QUOTES BELOW ---
+          export ROM_URL="https://your-actual-direct-link.com/pixel_base.zip"
+          # -------------------------------------------------------
+          
+          echo "Targeting Device: j5nlte (Samsung J500FN)"
+          echo "Starting download..."
+          
+          # This 'curl' command handles redirects better than wget
+          curl -L -o pixel_base.zip "$ROM_URL"
+          
+          # Check if the file is actually a zip and not a 404 HTML page
+          if file pixel_base.zip | grep -q "Zip archive data"; then
+            echo "Download Successful!"
+          else
+            echo "ERROR: The link returned a 404 or invalid file. Check your URL!"
+            exit 1
+          fi
+
+      - name: Run Build Engine
+        run: |
+          mkdir -p build_dir
+          unzip pixel_base.zip -d build_dir/
+          # Add your RumiOS build commands here
+          echo "Compiling RumiOS for j5nlte..."
+
+      - name: Upload Finished ROM
+        uses: actions/upload-artifact@v4
+        with:
+          name: RumiOS-j5nlte-Build
+          path: build_dir/*.zip
