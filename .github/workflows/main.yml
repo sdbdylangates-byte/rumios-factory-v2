@@ -1,0 +1,60 @@
+name: Build RumiOS v2
+
+on:
+  workflow_dispatch:
+    inputs:
+      rom_url:
+        description: 'Paste your direct download link (pixel_base.zip) here'
+        required: true
+        default: 'https://'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Maximize Build Space
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+          sudo docker image prune -a -f
+          df -h
+
+      - name: Install Dependencies
+        run: sudo apt-get update && sudo apt-get install -y zip unzip wget curl file
+
+      - name: Download Base ROM
+        run: |
+          echo "Targeting Device: j5nlte (Samsung J500FN)"
+          
+          # Grabs the link you paste into the GitHub UI
+          ROM_URL="${{ github.event.inputs.rom_url }}"
+          
+          echo "Downloading from: $ROM_URL"
+          
+          # Download using curl (handles redirects better)
+          curl -L -o pixel_base.zip "$ROM_URL"
+          
+          # Check if the file is actually a zip and not an HTML error page
+          if file pixel_base.zip | grep -q "Zip archive data"; then
+            echo "Download Successful!"
+          else
+            echo "ERROR: The link you pasted is dead, a 404, or not a direct link to a zip file."
+            echo "What GitHub actually downloaded:"
+            head -n 5 pixel_base.zip
+            exit 1
+          fi
+
+      - name: Run Build Engine
+        run: |
+          mkdir -p build_dir
+          unzip pixel_base.zip -d build_dir/
+          # Add your custom RumiOS build/patching commands below this line:
+          echo "Compiling RumiOS..."
+
+      - name: Upload Finished ROM
+        uses: actions/upload-artifact@v4
+        with:
+          name: RumiOS-j5nlte-Build
+          path: build_dir/*.zip
